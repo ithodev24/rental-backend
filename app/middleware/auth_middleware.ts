@@ -1,25 +1,30 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import type { NextFn } from '@adonisjs/core/types/http'
-import type { Authenticators } from '@adonisjs/auth/types'
+import jwt from 'jsonwebtoken'
+import env from '#start/env'
+import User from '#models/user'
 
-/**
- * Auth middleware is used authenticate HTTP requests and deny
- * access to unauthenticated users.
- */
 export default class AuthMiddleware {
-  /**
-   * The URL to redirect to, when authentication fails
-   */
-  redirectTo = '/login'
+  async handle({ request, response }: HttpContext, next: () => Promise<void>) {
+    const authHeader = request.header('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return response.unauthorized({ message: 'Token required' })
+    }
 
-  async handle(
-    ctx: HttpContext,
-    next: NextFn,
-    options: {
-      guards?: (keyof Authenticators)[]
-    } = {}
-  ) {
-    await ctx.auth.authenticateUsing(options.guards, { loginRoute: this.redirectTo })
-    return next()
+    const token = authHeader.split(' ')[1]
+
+    try {
+      const payload = jwt.verify(token, env.get('JWT_SECRET'))
+      if (typeof payload !== 'object' || !('id' in payload)) {
+        throw new Error('Invalid token payload')
+      }
+
+      const user = await User.find((payload as any).id)
+      if (!user) throw new Error('User not found')
+
+      request.set('authUser', user)
+      await next()
+    } catch {
+      return response.unauthorized({ message: 'Invalid or expired token' })
+    }
   }
 }

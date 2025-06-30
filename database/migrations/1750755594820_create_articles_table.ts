@@ -17,7 +17,7 @@ export default class extends BaseSchema {
       table.boolean('dihapus').defaultTo(false)
 
       table.timestamp('created_at')
-      table.timestamp('updated_at')
+      table.timestamp('updated_at').nullable()
     })
   }
 

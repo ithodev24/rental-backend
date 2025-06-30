@@ -1,75 +1,32 @@
-import User from '#models/user'
 import type { HttpContext } from '@adonisjs/core/http'
-import { schema, rules } from '@adonisjs/validator'
+import User from '#models/user'
+import jwt from 'jsonwebtoken'
+import env from '#start/env'
 
 export default class UsersController {
-  /**
-   * Display a list of resource
-   */
-  async index({}: HttpContext) {}
-
   async register({ request, response }: HttpContext) {
-    const payload = await request.validate({
-      schema: schema.create({
-        name: schema.string({}, [rules.required()]),
-        email: schema.string({}, [rules.required(), rules.email()]),
-        password: schema.string({}, [rules.required(), rules.minLength(8), rules.maxLength(32)]),
-      }),
-      messages: {
-        'name.required': 'Nama harus diisi',
-        'email.required': 'Email harus diisi',
-        'email.email': 'Format email tidak valid',
-        'password.required': 'Password harus diisi',
-        'password.minLength': 'Password minimal 8 karakter',
-        'password.maxLength': 'Password maksimal 32 karakter',
-      },
-    })
+    const { name, email, password } = request.only(['name', 'email', 'password'])
 
-    const emailUsed = await User.findBy('email', payload.email)
+    const existing = await User.findBy('email', email)
+    if (existing) return response.status(400).json({ message: 'Email already exists' })
 
-    const errors = [emailUsed && { field: 'email', message: 'Email sudah digunakan' }].filter(
-      Boolean
-    )
-
-    if (errors.length) {
-      return response.unprocessableEntity({ errors })
-    }
-
-    const user = await User.create(payload)
-
-    return {
-      user,
-      message: 'Register Berhasil!',
-    }
+    const user = await User.create({ name, email, password })
+    return response.status(201).json({ message: 'User created', user })
   }
 
-  /**
-   * Display form to create a new record
-   */
-  async create({}: HttpContext) {}
+  async login({ request, response }: HttpContext) {
+    const { email, password } = request.only(['email', 'password'])
 
-  /**
-   * Handle form submission for the create action
-   */
-  async store({ request }: HttpContext) {}
+    const user = await User.findBy('email', email)
+    if (!user || user.password !== password) {
+      return response.status(401).json({ message: 'Invalid credentials' })
+    }
 
-  /**
-   * Show individual record
-   */
-  async show({ params }: HttpContext) {}
+    const token = jwt.sign({ id: user.id, email: user.email }, env.get('JWT_SECRET'), { expiresIn: '1d' })
+    return response.json({ token })
+  }
 
-  /**
-   * Edit individual record
-   */
-  async edit({ params }: HttpContext) {}
-
-  /**
-   * Handle form submission for the edit action
-   */
-  async update({ params, request }: HttpContext) {}
-
-  /**
-   * Delete record
-   */
-  async destroy({ params }: HttpContext) {}
+  async profile({ authUser, response }: HttpContext) {
+    return response.json(authUser)
+  }
 }

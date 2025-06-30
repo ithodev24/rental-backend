@@ -51,16 +51,17 @@
     "vite": "^6.1.0"
   },
   "dependencies": {
-    "@adonisjs/auth": "^9.4.0",
     "@adonisjs/core": "^6.19.0",
-    "@adonisjs/lucid": "^21.6.1",
+    "@adonisjs/lucid": "^21.7.0",
     "@adonisjs/session": "^7.5.1",
     "@adonisjs/shield": "^8.1.2",
     "@adonisjs/static": "^1.1.1",
     "@adonisjs/validator": "^13.0.2",
     "@adonisjs/vite": "^4.0.0",
     "@vinejs/vine": "^3.0.0",
+    "bcrypt": "^6.0.0",
     "edge.js": "^6.2.1",
+    "jsonwebtoken": "^9.0.2",
     "luxon": "^3.6.1",
     "mysql2": "^3.14.1",
     "reflect-metadata": "^0.2.2"

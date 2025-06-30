@@ -1,28 +1,22 @@
-import { defineConfig } from '@adonisjs/auth'
-import { tokensGuard, tokensUserProvider } from '@adonisjs/auth/access_tokens'
-import type { InferAuthenticators, InferAuthEvents, Authenticators } from '@adonisjs/auth/types'
+// app/middleware/auth.ts
+import { HttpContext } from '@adonisjs/core/http'
+import jwt from 'jsonwebtoken'
+import User from '#models/user'
 
-const authConfig = defineConfig({
-  default: 'api',
-  guards: {
-    api: tokensGuard({
-      provider: tokensUserProvider({
-        tokens: 'accessTokens',
-        model: () => import('#models/user')
-      }),
-    }),
-  },
-})
+export default async function authMiddleware(ctx: HttpContext, next: () => Promise<void>) {
+  const authHeader = ctx.request.header('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return ctx.response.unauthorized({ message: 'Missing or invalid token' })
+  }
 
-export default authConfig
-
-/**
- * Inferring types from the configured auth
- * guards.
- */
-declare module '@adonisjs/auth/types' {
-  export interface Authenticators extends InferAuthenticators<typeof authConfig> {}
-}
-declare module '@adonisjs/core/types' {
-  interface EventsList extends InferAuthEvents<Authenticators> {}
+  try {
+    const token = authHeader.split(' ')[1]
+    const payload = jwt.verify(token, 'SECRET_KEY') as { id: number }
+    const user = await User.find(payload.id)
+    if (!user) throw new Error()
+    ctx.auth = { user }
+    await next()
+  } catch {
+    return ctx.response.unauthorized({ message: 'Invalid or expired token' })
+  }
 }
