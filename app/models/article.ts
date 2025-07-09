@@ -1,5 +1,12 @@
 import { DateTime } from 'luxon'
-import { BaseModel, column } from '@adonisjs/lucid/orm'
+import {
+  BaseModel,
+  column,
+  belongsTo,
+} from '@adonisjs/lucid/orm'
+
+import Category from '#models/category'
+import User from '#models/user'
 
 export default class Article extends BaseModel {
   @column({ isPrimary: true })
@@ -7,24 +14,24 @@ export default class Article extends BaseModel {
 
   @column()
   declare title: string
-  
+
   @column()
   declare slug: string
-  
+
   @column()
   declare content: string
-  
+
   @column()
   declare status: boolean
-  
+
   @column()
   declare thumbnail: string
-  
+
   @column.date()
   declare publishedAt: DateTime
-  
+
   @column()
-  declare categoryId: number  
+  declare categoryId: number
 
   @column()
   declare userId: number
@@ -37,4 +44,10 @@ export default class Article extends BaseModel {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
+
+  @belongsTo(() => Category)
+  declare category: Category
+
+  @belongsTo(() => User)
+  declare user: User
 }
