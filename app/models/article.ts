@@ -7,27 +7,24 @@ export default class Article extends BaseModel {
 
   @column()
   declare entity: 'RENTAL_MOTOR' | 'RENTAL_IPHONE' | 'SEWA_APARTMENT'
-  
+
   @column()
   declare title: string
-  
+
   @column()
   declare slug: string
-  
+
   @column()
   declare content: string
-  
+
   @column()
   declare status: boolean
-  
+
   @column()
   declare thumbnail: string
-  
+
   @column.date()
   declare publishedAt: DateTime
-  
-  @column()
-  declare categoryId: number  
 
   @column()
   declare userId: number
