@@ -19,11 +19,11 @@ export default class ArticlesController {
     try {
       const entity = request.qs().entity
 
-      const query = Article.query().where('dihapus', false).orderBy('created_at', 'desc')
+      const query = Article.query().where('dihapus', false)
 
       // Hanya filter entity jika ada
       if (entity) {
-        query.where('entity', entity)
+        query.where('entity', entity).where('status', true)
       }
 
       const articles = await query
