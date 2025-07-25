@@ -8,15 +8,31 @@ export default class KontakController {
     try {
       await Mail.send((message) => {
         message
-          .from('no-reply@yourdomain.com')
+          // .from('no-reply@yourdomain.com')
           .replyTo(email)
           .to('dhia.zahrah1511@gmail.com')
-          .subject(`[${source}] Kritik & Saran dari ${nama}`)
-          .html(`
-            <p><strong>Website:</strong> ${source}</p>
-            <p><strong>Nama:</strong> ${nama}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Pesan:</strong><br/>${pesan}</p>
+          .subject(`[${source}] Kritik & Saran dari ${nama}`).html(`
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+              <h1 style="color: #ffbb00ff; font-size: 2rem;">Website ${source}</h1>
+              <table style="width: 100%; border-collapse: collapse; font-size: 1rem;">
+                <tr>
+                  <td style="font-weight: bold; width: 120px;">Website:</td>
+                  <td>${source}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight: bold;">Nama:</td>
+                  <td>${nama}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight: bold;">Email:</td>
+                  <td>${email}</td>
+                </tr>
+                <tr>
+                  <td style="font-weight: bold; vertical-align: top;">Pesan:</td>
+                  <td style="white-space: pre-line;">${pesan}</td>
+                </tr>
+              </table>
+            </div>
           `)
       })
 

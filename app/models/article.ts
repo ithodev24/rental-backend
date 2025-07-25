@@ -6,6 +6,9 @@ export default class Article extends BaseModel {
   declare id: number
 
   @column()
+  declare entity: 'RENTAL_MOTOR' | 'RENTAL_IPHONE' | 'SEWA_APARTMENT'
+  
+  @column()
   declare title: string
   
   @column()

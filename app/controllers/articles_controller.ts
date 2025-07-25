@@ -4,16 +4,34 @@ import { schema, rules } from '@adonisjs/validator'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 
+function generateSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-') // Ganti spasi & simbol dengan strip
+    .replace(/^-+|-+$/g, '') // Hapus strip di awal/akhir
+}
 export default class ArticlesController {
   /**
    * Display a list of resource
    */
-  async index({}: HttpContext) {
+  async index({ response, request }: HttpContext) {
     try {
-      const article = await Article.query().where({ dihapus: 0 })
-      return article
+      const entity = request.qs().entity
+
+      const query = Article.query().where('dihapus', false).orderBy('created_at', 'desc')
+
+      // Hanya filter entity jika ada
+      if (entity) {
+        query.where('entity', entity)
+      }
+
+      const articles = await query
+      return articles
     } catch (error) {
-      return { message: 'Gagal mengambil data Article' }
+      return response
+        .status(500)
+        .json({ message: 'Gagal mengambil data artikel', error: error.message })
     }
   }
 
@@ -26,85 +44,103 @@ export default class ArticlesController {
    * Handle form submission for the create action
    */
   public async store({ request, response }: HttpContext) {
-    const payload = await request.validate({
-      schema: schema.create({
-        title: schema.string({}, [rules.required()]),
-        slug: schema.string({}, [rules.required()]),
-        content: schema.string({}, [rules.required()]),
-        status: schema.boolean(),
-        thumbnail: schema.file(
-          {
-            size: '2mb',
-            extnames: ['jpg', 'jpeg', 'png'],
-          },
-          [rules.required()]
-        ),
-        publishedAt: schema.date({}, [rules.required()]),
-        categoryId: schema.number([rules.required()]),
-        userId: schema.number([rules.required()]),
-      }),
-      messages: {
-        'title.required': 'Judul kategori harus diisi',
-        'slug.required': 'Slug kategori harus diisi',
-        'content.required': 'Konten kategori harus diisi',
-        'status.required': 'Status kategori harus diisi',
-        'thumbnail.required': 'Thumbnail kategori harus diisi',
-        'thumbnail.file.size': 'Ukuran thumbnail tidak boleh lebih dari 2MB',
-        'thumbnail.file.extname': 'Format thumbnail harus jpg, jpeg, atau png',
-        'publishedAt.required': 'Tanggal kategori harus diisi',
-        'categoryId.required': 'Kategori kategori harus diisi',
-        'userId.required': 'User kategori harus diisi',
-      },
-    })
-
-    const slugUsed = await Article.findBy('slug', payload.slug)
-    if (slugUsed) {
-      return response.unprocessableEntity({
-        errors: [{ field: 'slug', message: 'Slug artikel sudah digunakan' }],
+    try {
+      const payload = await request.validate({
+        schema: schema.create({
+          entity: schema.enum(['RENTAL_MOTOR', 'RENTAL_IPHONE', 'SEWA_APARTMENT'] as const, [
+            rules.required(),
+          ]),
+          title: schema.string({}, [rules.required()]),
+          content: schema.string({}, [rules.required()]),
+          status: schema.boolean(),
+          thumbnail: schema.file(
+            {
+              size: '2mb',
+              extnames: ['jpg', 'jpeg', 'png'],
+            },
+            [rules.required()]
+          ),
+          publishedAt: schema.date({}, [rules.required()]),
+          // categoryId: schema.number([rules.required()]),
+          // userId: schema.number([rules.required()]),
+        }),
+        messages: {
+          'entity.required': 'Entity kategori harus diisi',
+          'title.required': 'Judul kategori harus diisi',
+          'content.required': 'Konten kategori harus diisi',
+          'status.required': 'Status kategori harus diisi',
+          'thumbnail.required': 'Thumbnail kategori harus diisi',
+          'thumbnail.file.size': 'Ukuran thumbnail tidak boleh lebih dari 2MB',
+          'thumbnail.file.extname': 'Format thumbnail harus jpg, jpeg, atau png',
+          'publishedAt.required': 'Tanggal kategori harus diisi',
+          // 'categoryId.required': 'Kategori kategori harus diisi',
+          // 'userId.required': 'User kategori harus diisi',
+        },
       })
+
+      const slug = generateSlug(payload.title)
+
+      const slugUsed = await Article.findBy('slug', slug)
+      if (slugUsed) {
+        return response.unprocessableEntity({
+          errors: [{ field: 'slug', message: 'Slug artikel sudah digunakan' }],
+        })
+      }
+
+      const thumbnail = payload.thumbnail
+      const fileName = `${Date.now()}_${thumbnail.clientName}`
+      const uploadDir = join('public', 'uploads')
+      const publicUrl = `/uploads/${fileName}`
+
+      await fs.mkdir(uploadDir, { recursive: true })
+
+      // Pindahkan file ke folder public/uploads
+      await thumbnail.move(uploadDir, {
+        name: fileName,
+        overwrite: true,
+      })
+
+      const article = await Article.create({
+        slug,
+        entity: payload.entity,
+        title: payload.title,
+        content: payload.content,
+        status: payload.status,
+        thumbnail: publicUrl,
+        publishedAt: payload.publishedAt,
+        // categoryId: payload.categoryId,
+        // userId: payload.userId,
+      })
+
+      return response.created({
+        success: true,
+        message: 'Artikel berhasil ditambahkan',
+        data: article,
+      })
+    } catch (error) {
+      if (error.messages) {
+        return response.unprocessableEntity({
+          message: 'Validasi gagal',
+          errors: error.messages,
+        })
+      }
+
+      return response
+        .status(500)
+        .json({ message: 'Gagal menambahkan artikel', error: error.message })
     }
-
-    const thumbnail = payload.thumbnail
-    const fileName = `${Date.now()}_${thumbnail.clientName}`
-    const uploadDir = join('public', 'uploads')
-    const publicUrl = `/uploads/${fileName}`
-
-    await fs.mkdir(uploadDir, { recursive: true })
-
-    // Pindahkan file ke folder public/uploads
-    await thumbnail.move(uploadDir, {
-      name: fileName,
-      overwrite: true,
-    })
-
-    const article = await Article.create({
-      title: payload.title,
-      slug: payload.slug,
-      content: payload.content,
-      status: payload.status,
-      thumbnail: publicUrl,
-      publishedAt: payload.publishedAt,
-      categoryId: payload.categoryId,
-      userId: payload.userId,
-    })
-
-    return response.created({
-      article,
-      message: 'Artikel berhasil ditambahkan',
-    })
   }
 
   /**
    * Show individual record
    */
   async show({ params, response }: HttpContext) {
-    const article = await Article.query().where({ slug: params.slug, dihapus: 0 }).first()
-
-    if (!article) {
-      return response.notFound({ message: 'Artikel tidak ditemukan' })
+    try {
+      const article = await Article.query().where({ slug: params.slug, dihapus: false }).first()
+      return { success: true, message: 'Artikel ditemukan', data: article }
+    } catch (error) {
+      return response.status(404).json({ message: 'Artikel tidak ditemukan', error: error.message })
     }
-
-    return article
   }
 
   /**
@@ -116,87 +152,102 @@ export default class ArticlesController {
    * Handle form submission for the edit action
    */
   async update({ request, response, params }: HttpContext) {
-    const article = await Article.findOrFail(params.id)
+    try {
+      const article = await Article.findOrFail(params.id)
 
-    const payload = await request.validate({
-      schema: schema.create({
-        title: schema.string({}, [rules.required()]),
-        slug: schema.string({}, [rules.required()]),
-        content: schema.string({}, [rules.required()]),
-        status: schema.boolean(),
-        thumbnail: schema.file.optional({
-          size: '2mb',
-          extnames: ['jpg', 'jpeg', 'png'],
+      const payload = await request.validate({
+        schema: schema.create({
+          entity: schema.enum(['RENTAL_MOTOR', 'RENTAL_IPHONE', 'SEWA_APARTMENT'] as const, [
+            rules.required(),
+          ]),
+          title: schema.string({}, [rules.required()]),
+          content: schema.string({}, [rules.required()]),
+          status: schema.boolean(),
+          thumbnail: schema.file.optional({
+            size: '2mb',
+            extnames: ['jpg', 'jpeg', 'png'],
+          }),
+          publishedAt: schema.date({}, [rules.required()]),
+          // categoryId: schema.number([rules.required()]),
         }),
-        publishedAt: schema.date({}, [rules.required()]),
-        categoryId: schema.number([rules.required()]),
-      }),
-      messages: {
-        'title.required': 'Judul kategori harus diisi',
-        'slug.required': 'Slug kategori harus diisi',
-        'content.required': 'Konten kategori harus diisi',
-        'status.required': 'Status kategori harus diisi',
-        'thumbnail.file.size': 'Ukuran thumbnail tidak boleh lebih dari 2MB',
-        'thumbnail.file.extname': 'Format thumbnail harus jpg, jpeg, atau png',
-        'publishedAt.required': 'Tanggal kategori harus diisi',
-        'categoryId.required': 'Kategori kategori harus diisi',
-      },
-    })
-
-    const slugUsed = await Article.query()
-      .where('slug', payload.slug)
-      .whereNot('id', article.id)
-      .first()
-
-    if (slugUsed) {
-      return response.unprocessableEntity({
-        errors: [{ field: 'slug', message: 'Slug artikel sudah digunakan' }],
+        messages: {
+          'entity.required': 'Entity kategori harus diisi',
+          'title.required': 'Judul kategori harus diisi',
+          'content.required': 'Konten kategori harus diisi',
+          'status.required': 'Status kategori harus diisi',
+          'thumbnail.file.size': 'Ukuran thumbnail tidak boleh lebih dari 2MB',
+          'thumbnail.file.extname': 'Format thumbnail harus jpg, jpeg, atau png',
+          'publishedAt.required': 'Tanggal kategori harus diisi',
+          // 'categoryId.required': 'Kategori kategori harus diisi',
+        },
       })
-    }
+      const slug = generateSlug(payload.title)
+      const slugUsed = await Article.query().where('slug', slug).whereNot('id', article.id).first()
 
-    let newThumbnailUrl = article.thumbnail
-    if (payload.thumbnail) {
-      const fileName = `${Date.now()}_${payload.thumbnail.clientName}`
-      const uploadDir = join('public', 'uploads')
-      const publicUrl = `/uploads/${fileName}`
+      if (slugUsed) {
+        return response.unprocessableEntity({
+          errors: [{ field: 'slug', message: 'Slug artikel sudah digunakan' }],
+        })
+      }
 
-      await fs.mkdir(uploadDir, { recursive: true })
+      let newThumbnailUrl = article.thumbnail
+      if (payload.thumbnail) {
+        const fileName = `${Date.now()}_${payload.thumbnail.clientName}`
+        const uploadDir = join('public', 'uploads')
+        const publicUrl = `/uploads/${fileName}`
 
-      await payload.thumbnail.move(uploadDir, {
-        name: fileName,
-        overwrite: true,
+        await fs.mkdir(uploadDir, { recursive: true })
+
+        await payload.thumbnail.move(uploadDir, {
+          name: fileName,
+          overwrite: true,
+        })
+
+        newThumbnailUrl = publicUrl
+      }
+
+      article.merge({
+        slug,
+        entity: payload.entity,
+        userId: article.userId, // Assuming userId should not change
+        title: payload.title,
+        content: payload.content,
+        status: payload.status,
+        thumbnail: newThumbnailUrl,
+        publishedAt: payload.publishedAt,
+        // categoryId: payload.categoryId,
       })
 
-      newThumbnailUrl = publicUrl
-    }
+      await article.save()
 
-    article.merge({
-      title: payload.title,
-      slug: payload.slug,
-      content: payload.content,
-      status: payload.status,
-      thumbnail: newThumbnailUrl,
-      publishedAt: payload.publishedAt,
-      categoryId: payload.categoryId,
-    })
+      return {
+        success: true,
+        message: 'Artikel berhasil diupdate',
+        data: article,
+      }
+    } catch (error) {
+      if (error.messages) {
+        return response.unprocessableEntity({
+          message: 'Validasi gagal',
+          errors: error.messages,
+        })
+      }
 
-    await article.save()
-
-    return {
-      article,
-      message: 'Artikel berhasil diupdate',
+      return response
+        .status(500)
+        .json({ message: 'Gagal mengupdate artikel', error: error.message })
     }
   }
 
   /**
    * Delete record
    */
-  async destroy({ params }: HttpContext) {
+  async destroy({ params, response }: HttpContext) {
     try {
       const article = await Article.query().where({ id: params.id }).update({ dihapus: 1 })
-      return { article, message: 'Artikel berhasil dihapus!' }
+      return { success: true, message: 'Artikel berhasil dihapus!', data: article }
     } catch (error) {
-      return { message: 'Gagal menghapus artikel' }
+      return response.status(500).json({ message: 'Gagal menghapus artikel', error: error.message })
     }
   }
 }
