@@ -4,16 +4,16 @@ import { DateTime } from 'luxon'
 
 export default class User extends BaseModel {
   @column({ isPrimary: true })
-  public id: number
+  declare id: number
 
   @column()
-  public name: string
+  declare name: string
 
   @column()
-  public email: string
+  declare email: string
 
-  @column({ serializeAs: null }) // hide password
-  public password: string
+  @column()
+  declare password: string
 
    @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
