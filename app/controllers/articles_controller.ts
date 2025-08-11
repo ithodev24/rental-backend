@@ -1,4 +1,5 @@
 import Article from '#models/article'
+import ArticleView from '#models/article_view'
 import type { HttpContext } from '@adonisjs/core/http'
 import { schema, rules } from '@adonisjs/validator'
 import { promises as fs } from 'fs'
@@ -134,14 +135,32 @@ export default class ArticlesController {
   /**
    * Show individual record
    */
-  async show({ params, response }: HttpContext) {
+  async show({ params, request, response }: HttpContext) {
+  try {
+    const article = await Article.query()
+      .where({ slug: params.slug, dihapus: false })
+      .firstOrFail()
+
     try {
-      const article = await Article.query().where({ slug: params.slug, dihapus: false }).first()
-      return { success: true, message: 'Artikel ditemukan', data: article }
-    } catch (error) {
-      return response.status(404).json({ message: 'Artikel tidak ditemukan', error: error.message })
+      await ArticleView.create({
+        articleId: article.id,
+        entity: article.entity,
+        ipAddress: request.ip(),
+        userAgent: request.header('user-agent') || null,
+      })
+      console.log('✅ View berhasil dicatat')
+    } catch (err) {
+      console.error('❌ Gagal mencatat view:', err)
     }
+
+    return { success: true, message: 'Artikel ditemukan', data: article }
+  } catch (error) {
+    return response
+      .status(404)
+      .json({ message: 'Artikel tidak ditemukan', error: error.message })
   }
+}
+
 
   /**
    * Edit individual record
